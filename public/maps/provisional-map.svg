@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width="2000" height="2000">
+  <defs>
+    <radialGradient id="oceanGrad" cx="50%" cy="50%" r="70%">
+      <stop offset="0%" stop-color="#0d1b2a" />
+      <stop offset="100%" stop-color="#070d17" />
+    </radialGradient>
+    <pattern id="smallGrid" width="25" height="25" patternUnits="userSpaceOnUse">
+      <path d="M 25 0 L 0 0 0 25" fill="none" stroke="rgba(56, 189, 248, 0.05)" stroke-width="0.6" />
+    </pattern>
+    <pattern id="grid" width="100" height="100" patternUnits="userSpaceOnUse">
+      <rect width="100" height="100" fill="url(#smallGrid)" />
+      <path d="M 100 0 L 0 0 0 100" fill="none" stroke="rgba(56, 189, 248, 0.12)" stroke-width="1" />
+    </pattern>
+  </defs>
+
+  <!-- Océano -->
+  <rect width="1000" height="1000" fill="url(#oceanGrad)" />
+  <rect width="1000" height="1000" fill="url(#grid)" />
+
+  <!-- Contorno principal de Leonida (Provisional) -->
+  <path
+    d="M 240 120 C 380 90, 620 100, 720 190 C 780 260, 790 420, 760 560 C 740 660, 790 740, 740 820 C 680 870, 560 860, 480 830 C 410 800, 340 720, 280 620 C 210 510, 180 390, 210 260 C 220 190, 210 140, 240 120 Z"
+    fill="#162238"
+    stroke="#38bdf8"
+    stroke-width="2.5"
+    stroke-opacity="0.55"
+  />
+
+  <!-- Lake Leonida (Centro) -->
+  <ellipse cx="490" cy="450" rx="85" ry="65" fill="#0b1626" stroke="#38bdf8" stroke-width="1.5" stroke-opacity="0.4" />
+
+  <!-- Vice City & Vice Beach (Este/Sureste) -->
+  <path
+    d="M 670 560 L 750 550 L 765 730 L 675 745 Z"
+    fill="#1e2f4d"
+    stroke="#f472b6"
+    stroke-width="2"
+    stroke-opacity="0.65"
+  />
+  <path
+    d="M 775 565 L 798 565 L 792 725 L 770 725 Z"
+    fill="#24385c"
+    stroke="#38bdf8"
+    stroke-width="1.5"
+    stroke-opacity="0.7"
+  />
+
+  <!-- Leonida Keys (Archipiélago Sur) -->
+  <path d="M 620 865 Q 540 900 440 925" fill="none" stroke="#64748b" stroke-width="3" stroke-dasharray="6,6" />
+  <ellipse cx="610" cy="870" rx="28" ry="12" fill="#1b2a44" stroke="#38bdf8" stroke-width="1.5" stroke-opacity="0.5" />
+  <ellipse cx="535" cy="898" rx="34" ry="13" fill="#1b2a44" stroke="#38bdf8" stroke-width="1.5" stroke-opacity="0.5" />
+  <ellipse cx="445" cy="925" rx="40" ry="15" fill="#1b2a44" stroke="#38bdf8" stroke-width="1.5" stroke-opacity="0.5" />
+
+  <!-- Autopistas principales -->
+  <path
+    d="M 270 430 Q 370 310 520 280 T 720 620"
+    fill="none"
+    stroke="#f472b6"
+    stroke-width="3"
+    stroke-opacity="0.45"
+  />
+  <path
+    d="M 285 440 Q 380 580 510 610 T 720 650"
+    fill="none"
+    stroke="#38bdf8"
+    stroke-width="2.5"
+    stroke-opacity="0.45"
+  />
+  <path d="M 490 150 L 490 380 M 490 520 L 660 790" fill="none" stroke="#94a3b8" stroke-width="2" stroke-opacity="0.3" />
+
+  <!-- Etiquetas de regiones estilo State of Leonida -->
+  <g font-family="sans-serif" font-weight="700" text-anchor="middle" letter-spacing="3">
+    <text x="485" y="210" fill="#94a3b8" font-size="16" opacity="0.8">MOUNT KALAGA</text>
+    <text x="490" y="455" fill="#38bdf8" font-size="14" opacity="0.7">LAKE LEONIDA</text>
+    <text x="295" y="450" fill="#e2e8f0" font-size="17" opacity="0.85">PORT GELLHORN</text>
+    <text x="565" y="545" fill="#cbd5e1" font-size="15" opacity="0.75">AMBROSIA</text>
+    <text x="720" y="650" fill="#f472b6" font-size="20">VICE CITY</text>
+    <text x="530" y="775" fill="#34d399" font-size="16" opacity="0.75">GRASSRIVERS</text>
+    <text x="535" y="955" fill="#38bdf8" font-size="15" opacity="0.75">LEONIDA KEYS</text>
+  </g>
+</svg>
