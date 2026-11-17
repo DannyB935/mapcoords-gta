@@ -1,20 +1,20 @@
 -- Tabla para guardar los puntos de interés (markers) en Supabase
 create table if not exists public.markers (
   id uuid primary key default gen_random_uuid(),
-  map_id text not null default 'provisional-v1',
   title text not null,
   description text default '',
   category text not null default 'custom',
+  owner text not null default 'Anónimo',
   lat double precision not null, -- Coordenada Y en CRS.Simple
   lng double precision not null, -- Coordenada X en CRS.Simple
   completed boolean not null default false,
   created_at timestamptz not null default now()
 );
 
--- Índice para filtrar rápidamente por mapa (provisional vs definitivo)
-create index if not exists idx_markers_map_id on public.markers (map_id);
+-- Índice para filtrar rápidamente por autor (owner)
+create index if not exists idx_markers_owner on public.markers (owner);
 
--- Políticas RLS para uso personal (puedes restringirlo a tu usuario autenticado si activas Auth)
+-- Políticas RLS para uso personal y de amigos
 alter table public.markers enable row level security;
 
 create policy "Permitir lectura publica o personal"

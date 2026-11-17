@@ -1,32 +1,28 @@
-// Configuración centralizada del mapa.
-// Cuando salga el mapa definitivo del juego, solo necesitas cambiar `imageUrl` o agregar una capa en `MAP_LAYERS`.
+// ============================================================================
+// CONSTANTES DE DIMENSIONES DE LA IMAGEN DEL MAPA
+// Si agregas o cambias la imagen del mapa en el futuro, solo modifica
+// `MAP_IMAGE_WIDTH`, `MAP_IMAGE_HEIGHT` y `MAP_IMAGE_URL`.
+// ============================================================================
+export const MAP_IMAGE_WIDTH = 5944
+export const MAP_IMAGE_HEIGHT = 8075
+export const MAP_IMAGE_URL = '/maps/5map.jpg'
+
 export const MAP_CONFIG = {
-  id: 'leonida-provisional-v1',
-  name: 'State of Leonida (Provisional)',
-  subtitle: 'Interactive Community & Personal Map',
-  // Coordenadas normalizadas [Y, X] para CRS.Simple (0 a 1000)
+  name: 'Leonida',
+  subtitle: 'Mapa personal GTA 6',
+  width: MAP_IMAGE_WIDTH,
+  height: MAP_IMAGE_HEIGHT,
+  // En Leaflet CRS.Simple los límites se definen como [[0, 0], [ALTO, ANCHO]]
   bounds: [
     [0, 0],
-    [1000, 1000],
+    [MAP_IMAGE_HEIGHT, MAP_IMAGE_WIDTH],
   ],
-  minZoom: -1,
-  maxZoom: 3,
-  defaultZoom: 0,
-  imageUrl: '/maps/provisional-map.svg',
+  // minZoom negativo permite ver imágenes grandes (4K/8K) completas en móvil y PC
+  minZoom: -4,
+  maxZoom: 2,
+  focusZoom: -1,
+  imageUrl: MAP_IMAGE_URL,
 }
-
-export const MAP_LAYERS = [
-  {
-    id: 'blueprint',
-    name: 'Leonida Blueprint (Provisional)',
-    url: '/maps/provisional-map.svg',
-  },
-  {
-    id: 'radar',
-    name: 'Dark Radar Grid',
-    url: '/maps/provisional-radar.svg',
-  },
-]
 
 export const CATEGORIES = [
   {

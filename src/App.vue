@@ -2,7 +2,17 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import L from 'leaflet'
 import { supabase } from './lib/supabase'
-import { MAP_CONFIG, MAP_LAYERS, CATEGORIES } from './config/mapConfig'
+import { MAP_CONFIG, CATEGORIES } from './config/mapConfig'
+import {
+  fetchMarkers,
+  createMarker,
+  updateMarker,
+  updateMarkerCompleted,
+  deleteMarkerById,
+  exportMarkersToJson,
+  importMarkersFromJsonFile,
+  getLastOwnerName,
+} from './utils/api'
 
 // Componentes de UI
 import TopBar from './components/TopBar.vue'
@@ -29,14 +39,17 @@ let mapInstance = null
 let currentImageOverlay = null
 const leafletMarkers = new Map()
 
-const isSidebarOpen = ref(true)
+const isSidebarOpen = ref(typeof window !== 'undefined' ? window.innerWidth >= 640 : true)
 const isAddMode = ref(true)
 const hideCompleted = ref(false)
-const activeLayerId = ref(MAP_LAYERS[0].id)
 
-const cursorCoords = ref({ x: 500, y: 500 })
+const cursorCoords = ref({
+  x: Math.round(MAP_CONFIG.width / 2),
+  y: Math.round(MAP_CONFIG.height / 2),
+})
 const markers = ref([])
 const selectedCategories = ref(CATEGORIES.map((c) => c.id))
+const selectedOwner = ref('all')
 const searchQuery = ref('')
 const activeMarker = ref(null)
 const copiedToast = ref(false)
@@ -49,54 +62,30 @@ const form = ref({
   title: '',
   description: '',
   category: 'landmark',
+  owner: '',
 })
-
-// Puntos de demostración iniciales si aún no hay datos guardados
-const DEMO_MARKERS = [
-  {
-    id: 'demo-1',
-    map_id: MAP_CONFIG.id,
-    title: 'Ocean Drive Hotel & Neon Strip',
-    description: 'Punto icónico visto en el primer avance en Vice Beach.',
-    category: 'landmark',
-    lat: 345,
-    lng: 735,
-    completed: false,
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 'demo-2',
-    map_id: MAP_CONFIG.id,
-    title: 'Garaje Clandestino Port Gellhorn',
-    description: 'Posible taller y escondite de vehículos modificados.',
-    category: 'vehicle',
-    lat: 550,
-    lng: 295,
-    completed: false,
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 'demo-3',
-    map_id: MAP_CONFIG.id,
-    title: 'Mirador Cima Mount Kalaga',
-    description: 'Zona boscosa al norte ideal para coleccionables y caza.',
-    category: 'collectible',
-    lat: 790,
-    lng: 485,
-    completed: true,
-    created_at: new Date().toISOString(),
-  },
-]
 
 function getCategoryInfo(catId) {
   return CATEGORIES.find((c) => c.id === catId) || CATEGORIES[CATEGORIES.length - 1]
 }
 
+// Lista única de personas (owners) con la cantidad de marcadores que pusieron
+const ownersList = computed(() => {
+  const mapCounts = new Map()
+  markers.value.forEach((m) => {
+    const ownerName = (m.owner || 'Anónimo').trim()
+    mapCounts.set(ownerName, (mapCounts.get(ownerName) || 0) + 1)
+  })
+  return Array.from(mapCounts.entries()).map(([name, count]) => ({ name, count }))
+})
+
 const categoryCounts = computed(() => {
   const counts = {}
   CATEGORIES.forEach((c) => (counts[c.id] = 0))
   markers.value.forEach((m) => {
-    if (counts[m.category] !== undefined) counts[m.category]++
+    const matchOwner =
+      selectedOwner.value === 'all' || (m.owner || 'Anónimo') === selectedOwner.value
+    if (matchOwner && counts[m.category] !== undefined) counts[m.category]++
   })
   return counts
 })
@@ -106,12 +95,16 @@ const completedCount = computed(() => markers.value.filter((m) => m.completed).l
 const filteredMarkers = computed(() => {
   return markers.value.filter((m) => {
     if (hideCompleted.value && m.completed) return false
+    const matchOwner =
+      selectedOwner.value === 'all' || (m.owner || 'Anónimo') === selectedOwner.value
+    if (!matchOwner) return false
     const matchCategory = selectedCategories.value.includes(m.category)
     const q = searchQuery.value.trim().toLowerCase()
     const matchSearch =
       !q ||
       m.title.toLowerCase().includes(q) ||
       (m.description && m.description.toLowerCase().includes(q)) ||
+      (m.owner && m.owner.toLowerCase().includes(q)) ||
       getCategoryInfo(m.category).label.toLowerCase().includes(q)
     return matchCategory && matchSearch
   })
@@ -119,31 +112,11 @@ const filteredMarkers = computed(() => {
 
 async function loadMarkers() {
   try {
-    if (supabase) {
-      const { data, error } = await supabase
-        .from('markers')
-        .select('*')
-        .eq('map_id', MAP_CONFIG.id)
-        .order('created_at', { ascending: false })
-      if (error) throw error
-      markers.value = data || []
-    } else {
-      const saved = localStorage.getItem(`markers_${MAP_CONFIG.id}`)
-      if (saved) {
-        markers.value = JSON.parse(saved)
-      } else {
-        markers.value = DEMO_MARKERS
-        saveLocalFallback()
-      }
-    }
+    markers.value = await fetchMarkers()
     syncMarkersOnMap()
   } catch (err) {
     console.error('Error cargando marcadores:', err)
   }
-}
-
-function saveLocalFallback() {
-  localStorage.setItem(`markers_${MAP_CONFIG.id}`, JSON.stringify(markers.value))
 }
 
 function openCreateModal(lat, lng) {
@@ -153,6 +126,7 @@ function openCreateModal(lat, lng) {
     title: '',
     description: '',
     category: 'landmark',
+    owner: getLastOwnerName(),
   }
   isModalOpen.value = true
 }
@@ -164,6 +138,7 @@ function openEditModal(point) {
     title: point.title,
     description: point.description || '',
     category: point.category,
+    owner: point.owner || 'Anónimo',
   }
   isModalOpen.value = true
 }
@@ -171,70 +146,38 @@ function openEditModal(point) {
 async function saveMarker() {
   if (!form.value.title.trim()) return
 
-  if (editingMarkerId.value) {
-    const idx = markers.value.findIndex((m) => m.id === editingMarkerId.value)
-    if (idx === -1) return
-
-    const updatedFields = {
-      title: form.value.title.trim(),
-      description: form.value.description.trim(),
-      category: form.value.category,
-      lat: Number(pendingCoords.value.lat.toFixed(1)),
-      lng: Number(pendingCoords.value.lng.toFixed(1)),
-    }
-
-    try {
-      if (supabase) {
-        const { data, error } = await supabase
-          .from('markers')
-          .update(updatedFields)
-          .eq('id', editingMarkerId.value)
-          .select()
-          .single()
-        if (error) throw error
-        markers.value[idx] = data
-      } else {
-        markers.value[idx] = { ...markers.value[idx], ...updatedFields }
-        saveLocalFallback()
-      }
-
-      if (activeMarker.value?.id === editingMarkerId.value) {
-        activeMarker.value = markers.value[idx]
-      }
-      syncMarkersOnMap()
-      isModalOpen.value = false
-    } catch (err) {
-      console.error('Error actualizando marcador:', err)
-    }
-    return
-  }
-
-  const newPoint = {
-    map_id: MAP_CONFIG.id,
-    title: form.value.title.trim(),
-    description: form.value.description.trim(),
-    category: form.value.category,
-    lat: Number(pendingCoords.value.lat.toFixed(1)),
-    lng: Number(pendingCoords.value.lng.toFixed(1)),
-    completed: false,
-  }
-
   try {
-    if (supabase) {
-      const { data, error } = await supabase.from('markers').insert([newPoint]).select().single()
-      if (error) throw error
-      markers.value.unshift(data)
-      activeMarker.value = data
-    } else {
-      const localPoint = {
-        ...newPoint,
-        id: crypto.randomUUID(),
-        created_at: new Date().toISOString(),
+    if (editingMarkerId.value) {
+      const updated = await updateMarker(
+        editingMarkerId.value,
+        {
+          ...form.value,
+          lat: pendingCoords.value.lat,
+          lng: pendingCoords.value.lng,
+        },
+        markers.value
+      )
+
+      const idx = markers.value.findIndex((m) => m.id === editingMarkerId.value)
+      if (idx !== -1 && updated) {
+        markers.value[idx] = updated
       }
-      markers.value.unshift(localPoint)
-      saveLocalFallback()
-      activeMarker.value = localPoint
+      if (activeMarker.value?.id === editingMarkerId.value) {
+        activeMarker.value = updated
+      }
+    } else {
+      const created = await createMarker(
+        {
+          ...form.value,
+          lat: pendingCoords.value.lat,
+          lng: pendingCoords.value.lng,
+        },
+        markers.value
+      )
+      markers.value.unshift(created)
+      activeMarker.value = created
     }
+
     syncMarkersOnMap()
     isModalOpen.value = false
   } catch (err) {
@@ -245,15 +188,8 @@ async function saveMarker() {
 async function toggleCompleted(point) {
   const nextState = !point.completed
   try {
-    if (supabase) {
-      const { error } = await supabase
-        .from('markers')
-        .update({ completed: nextState })
-        .eq('id', point.id)
-      if (error) throw error
-    }
+    await updateMarkerCompleted(point.id, nextState, markers.value)
     point.completed = nextState
-    if (!supabase) saveLocalFallback()
     syncMarkersOnMap()
   } catch (err) {
     console.error('Error actualizando estado completado:', err)
@@ -262,13 +198,9 @@ async function toggleCompleted(point) {
 
 async function deleteMarker(id) {
   try {
-    if (supabase) {
-      const { error } = await supabase.from('markers').delete().eq('id', id)
-      if (error) throw error
-    }
+    await deleteMarkerById(id, markers.value)
     markers.value = markers.value.filter((m) => m.id !== id)
     if (activeMarker.value?.id === id) activeMarker.value = null
-    if (!supabase) saveLocalFallback()
     syncMarkersOnMap()
   } catch (err) {
     console.error('Error eliminando marcador:', err)
@@ -306,7 +238,8 @@ function syncMarkersOnMap() {
       icon: createLeonidaPinIcon(point),
     }).addTo(mapInstance)
 
-    marker.bindTooltip(point.title, {
+    const ownerBadge = point.owner ? ` · ${point.owner}` : ''
+    marker.bindTooltip(`${point.title}${ownerBadge}`, {
       direction: 'top',
       className: 'leonida-tooltip',
       offset: [0, -4],
@@ -315,9 +248,13 @@ function syncMarkersOnMap() {
     marker.on('click', (e) => {
       L.DomEvent.stopPropagation(e)
       activeMarker.value = point
-      mapInstance.flyTo([point.lat, point.lng], Math.max(mapInstance.getZoom(), 0.5), {
-        duration: 0.45,
-      })
+      mapInstance.flyTo(
+        [point.lat, point.lng],
+        Math.max(mapInstance.getZoom(), MAP_CONFIG.focusZoom ?? -1),
+        {
+          duration: 0.45,
+        }
+      )
     })
 
     leafletMarkers.set(point.id, marker)
@@ -343,7 +280,14 @@ function hideAllCategories() {
 function flyToMarker(point) {
   if (!mapInstance) return
   activeMarker.value = point
-  mapInstance.flyTo([point.lat, point.lng], 1.2, { duration: 0.55 })
+  if (typeof window !== 'undefined' && window.innerWidth < 640) {
+    isSidebarOpen.value = false
+  }
+  mapInstance.flyTo(
+    [point.lat, point.lng],
+    Math.max(mapInstance.getZoom(), MAP_CONFIG.focusZoom ?? -1),
+    { duration: 0.55 }
+  )
 }
 
 function zoomIn() {
@@ -358,55 +302,29 @@ function resetView() {
   mapInstance?.fitBounds(MAP_CONFIG.bounds)
 }
 
-function switchLayer(layer) {
-  activeLayerId.value = layer.id
-  if (currentImageOverlay && mapInstance) {
-    currentImageOverlay.setUrl(layer.url)
-  }
-}
-
-function applyCustomMapImage(url) {
-  if (!url || !currentImageOverlay) return
-  currentImageOverlay.setUrl(url)
-  activeLayerId.value = 'custom'
-}
-
 function copyCoords(point) {
   navigator.clipboard?.writeText(`X: ${point.lng}, Y: ${point.lat} - ${point.title}`)
   copiedToast.value = true
   setTimeout(() => (copiedToast.value = false), 2000)
 }
 
-function exportJson() {
-  const blob = new Blob([JSON.stringify(markers.value, null, 2)], { type: 'application/json' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `leonida-markers-${new Date().toISOString().slice(0, 10)}.json`
-  a.click()
-  URL.revokeObjectURL(url)
+function handleExportJson() {
+  exportMarkersToJson(markers.value)
 }
 
-function importJson(event) {
+async function handleImportJson(event) {
   const file = event.target.files?.[0]
   if (!file) return
-  const reader = new FileReader()
-  reader.onload = (e) => {
-    try {
-      const imported = JSON.parse(e.target.result)
-      if (Array.isArray(imported)) {
-        markers.value = imported
-        if (!supabase) saveLocalFallback()
-        syncMarkersOnMap()
-      }
-    } catch (err) {
-      console.error('Archivo JSON inválido:', err)
-    }
+  try {
+    const imported = await importMarkersFromJsonFile(file)
+    markers.value = supabase ? [...imported, ...markers.value] : imported
+    syncMarkersOnMap()
+  } catch (err) {
+    console.error('Archivo JSON inválido:', err)
   }
-  reader.readAsText(file)
 }
 
-watch([selectedCategories, hideCompleted, searchQuery], () => {
+watch([selectedCategories, selectedOwner, hideCompleted, searchQuery], () => {
   syncMarkersOnMap()
 })
 
@@ -425,8 +343,8 @@ onMounted(() => {
 
   mapInstance.on('mousemove', (e) => {
     cursorCoords.value = {
-      x: Math.max(0, Math.min(1000, e.latlng.lng)).toFixed(1),
-      y: Math.max(0, Math.min(1000, e.latlng.lat)).toFixed(1),
+      x: Math.max(0, Math.min(MAP_CONFIG.width, e.latlng.lng)).toFixed(1),
+      y: Math.max(0, Math.min(MAP_CONFIG.height, e.latlng.lat)).toFixed(1),
     }
   })
 
@@ -472,19 +390,19 @@ onMounted(() => {
       :filtered-markers="filteredMarkers"
       :selected-categories="selectedCategories"
       :category-counts="categoryCounts"
+      :owners-list="ownersList"
+      v-model:selected-owner="selectedOwner"
       :completed-count="completedCount"
       v-model:hide-completed="hideCompleted"
-      :active-layer-id="activeLayerId"
+      @close="isSidebarOpen = false"
       @toggle-category="toggleCategory"
       @show-all-categories="showAllCategories"
       @hide-all-categories="hideAllCategories"
       @fly-to-marker="flyToMarker"
       @toggle-completed="toggleCompleted"
       @delete-marker="deleteMarker"
-      @switch-layer="switchLayer"
-      @apply-custom-map="applyCustomMapImage"
-      @export-json="exportJson"
-      @import-json="importJson"
+      @export-json="handleExportJson"
+      @import-json="handleImportJson"
     />
 
     <!-- TARJETA FLOTANTE DE DETALLE DEL MARCADOR -->
@@ -511,6 +429,7 @@ onMounted(() => {
       :is-editing="Boolean(editingMarkerId)"
       :coords="pendingCoords"
       :form="form"
+      :existing-owners="ownersList"
       @close="isModalOpen = false"
       @save="saveMarker"
     />

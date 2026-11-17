@@ -1,5 +1,5 @@
 <script setup>
-import { X } from 'lucide-vue-next'
+import { X, User } from 'lucide-vue-next'
 import CategoryIcon from './CategoryIcon.vue'
 import { CATEGORIES } from '../config/mapConfig'
 
@@ -19,6 +19,10 @@ defineProps({
   form: {
     type: Object,
     required: true,
+  },
+  existingOwners: {
+    type: Array,
+    default: () => [],
   },
 })
 
@@ -50,6 +54,7 @@ defineEmits(['close', 'save'])
       </div>
 
       <div class="mt-4 space-y-3.5">
+        <!-- Nombre del lugar -->
         <div>
           <label class="text-xs font-semibold text-slate-300 block mb-1">Nombre del lugar</label>
           <input
@@ -61,9 +66,43 @@ defineEmits(['close', 'save'])
           />
         </div>
 
+        <!-- Autor / Owner -->
+        <div>
+          <label class="text-xs font-semibold text-slate-300 flex items-center gap-1.5 mb-1">
+            <User class="w-3.5 h-3.5 text-pink-400" />
+            <span>Agregado por (Tu nombre / Nick)</span>
+          </label>
+          <input
+            v-model="form.owner"
+            type="text"
+            placeholder="Ej. Danny, Alex..."
+            class="w-full px-3.5 py-2 rounded-xl bg-black/40 border border-white/15 text-sm text-white outline-none focus:border-pink-400"
+            @keyup.enter="$emit('save')"
+          />
+          <!-- Chips rápidos de nombres ya usados -->
+          <div v-if="existingOwners.length > 0" class="flex items-center gap-1.5 flex-wrap mt-1.5">
+            <span class="text-[10px] text-slate-400">Rápido:</span>
+            <button
+              v-for="ownerItem in existingOwners"
+              :key="ownerItem.name"
+              type="button"
+              @click="form.owner = ownerItem.name"
+              class="px-2 py-0.5 rounded-full text-[10px] font-semibold border transition cursor-pointer"
+              :class="
+                form.owner === ownerItem.name
+                  ? 'bg-pink-500/25 border-pink-400/60 text-pink-200'
+                  : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
+              "
+            >
+              {{ ownerItem.name }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Categoría -->
         <div>
           <label class="text-xs font-semibold text-slate-300 block mb-1.5">Categoría del Marcador</label>
-          <div class="grid grid-cols-2 gap-1.5 max-h-44 overflow-y-auto pr-1">
+          <div class="grid grid-cols-2 gap-1.5 max-h-40 overflow-y-auto pr-1">
             <button
               v-for="cat in CATEGORIES"
               :key="cat.id"
@@ -87,11 +126,12 @@ defineEmits(['close', 'save'])
           </div>
         </div>
 
+        <!-- Descripción -->
         <div>
           <label class="text-xs font-semibold text-slate-300 block mb-1">Descripción / Notas</label>
           <textarea
             v-model="form.description"
-            rows="3"
+            rows="2"
             placeholder="Detalles sobre cómo llegar, recompensas o notas..."
             class="w-full px-3.5 py-2 rounded-xl bg-black/40 border border-white/15 text-sm text-white outline-none focus:border-sky-400 resize-none"
           ></textarea>

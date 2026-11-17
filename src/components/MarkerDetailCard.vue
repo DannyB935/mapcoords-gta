@@ -1,5 +1,5 @@
 <script setup>
-import { Check, Trash2, Edit3, Copy, X } from 'lucide-vue-next'
+import { Check, Trash2, Edit3, Copy, X, User } from 'lucide-vue-next'
 import CategoryIcon from './CategoryIcon.vue'
 import { CATEGORIES } from '../config/mapConfig'
 
@@ -49,13 +49,21 @@ function getCategoryInfo(catId) {
             <CategoryIcon :name="getCategoryInfo(marker.category).icon" size-class="w-4 h-4" />
           </div>
           <div>
-            <span
-              class="text-[10px] font-bold uppercase tracking-wider"
-              :style="{ color: getCategoryInfo(marker.category).color }"
-            >
-              {{ getCategoryInfo(marker.category).label }}
-            </span>
-            <h3 class="text-sm font-bold text-white leading-snug">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span
+                class="text-[10px] font-bold uppercase tracking-wider"
+                :style="{ color: getCategoryInfo(marker.category).color }"
+              >
+                {{ getCategoryInfo(marker.category).label }}
+              </span>
+              <span
+                class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-pink-500/15 text-pink-300 border border-pink-400/30"
+              >
+                <User class="w-2.5 h-2.5" />
+                {{ marker.owner || 'Anónimo' }}
+              </span>
+            </div>
+            <h3 class="text-sm font-bold text-white leading-snug mt-0.5">
               {{ marker.title }}
             </h3>
           </div>
