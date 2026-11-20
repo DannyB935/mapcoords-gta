@@ -3,9 +3,9 @@
 // Si agregas o cambias la imagen del mapa en el futuro, solo modifica
 // `MAP_IMAGE_WIDTH`, `MAP_IMAGE_HEIGHT` y `MAP_IMAGE_URL`.
 // ============================================================================
-export const MAP_IMAGE_WIDTH = 5944
-export const MAP_IMAGE_HEIGHT = 8075
-export const MAP_IMAGE_URL = '/maps/5map.jpg'
+export const MAP_IMAGE_WIDTH = 5775
+export const MAP_IMAGE_HEIGHT = 7900
+export const MAP_IMAGE_URL = '/maps/leonida.jpg'
 
 export const MAP_CONFIG = {
   name: 'Leonida',
